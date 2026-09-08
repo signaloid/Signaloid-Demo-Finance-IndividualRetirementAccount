@@ -1,5 +1,5 @@
 /*
- *	Copyright (c) 2024, Signaloid.
+ *	Copyright (c) 2025-2026, Signaloid.
  *
  *	Permission is hereby granted, free of charge, to any person obtaining a copy
  *	of this software and associated documentation files (the "Software"), to deal
@@ -20,41 +20,52 @@
  *	SOFTWARE.
  */
 
+#pragma once
+
+#include <stdlib.h>
 #include "utilities.h"
 
+/**
+ *	@brief	UxHw-mode calculation kernel. Draws the per-year input
+ *		distributions (unless they were read from a CSV file) and evaluates
+ *		the selected output(s) once, using distributional arithmetic, via
+ *		the kernels in `investment-retirement-account-uxhw.h`. Writes the
+ *		per-output results into `outputVariables`.
+ *
+ *	@param	arguments		: Command-line arguments.
+ *	@param	inputVariables		: Array of `kInputDistributionIndexMax` per-year input arrays, each of length `arguments->numberOfYearsToRetirement`.
+ *	@param	outputVariables		: Array of size `kOutputDistributionIndexMax` to fill.
+ *	@return	double			: Returns the value of the selected output (or of the last output when all outputs are selected).
+ */
+double
+calculateOutputUxHw(
+	CommandLineArguments *  arguments,
+	double *                inputVariables[kInputDistributionIndexMax],
+	double *                outputVariables);
 
 /**
- *	@brief	Calculate taxed future value.
+ *	@brief	Monte Carlo calculation kernel. Runs
+ *		`arguments->common.numberOfMonteCarloIterations` independent
+ *		iterations, redrawing a fresh set of per-year input samples for each
+ *		one (unless they were read from a CSV file) and evaluating the
+ *		selected output via the sample-domain kernels in
+ *		`investment-retirement-account-monte-carlo.h`, which use no UxHw
+ *		distributional API. Fills `monteCarloOutputSamples` with one sample
+ *		per iteration and writes the last sample into
+ *		`outputVariables[arguments->common.outputSelect]`.
  *
- *	@param	numberOfYearsToRetirement	: Number of years to retirement.
- *	@param	inputVariables			: The input variables.
- *	@return					: Taxed future value.
- */
-double	calculateFutureValueTaxed(
-		int		numberOfYearsToRetirement,
-		double *	inputVariables[kInputDistributionIndexMax]);
-
-/**
- *	@brief	Calculate taxed future value assuming a withdrawal rate.
+ *		A single output must be selected in Monte Carlo mode; this is
+ *		enforced by `getCommandLineArguments()`.
  *
- *	@param	numberOfYearsToRetirement	: Number of years to retirement.
- *	@param	inputVariables			: The input variables.
- *	@return					: Tax free future value.
+ *	@param	arguments		: Command-line arguments.
+ *	@param	inputVariables		: Array of `kInputDistributionIndexMax` per-year input arrays, each of length `arguments->numberOfYearsToRetirement`.
+ *	@param	outputVariables		: Array of size `kOutputDistributionIndexMax` to fill.
+ *	@param	monteCarloOutputSamples	: Array of `numberOfMonteCarloIterations` doubles, filled with samples.
+ *	@return	double			: Returns the last sample of the selected output.
  */
-double	calculateFutureValueTaxedWithdrawal(
-		int		numberOfYearsToRetirement,
-		double *	inputVariables[kInputDistributionIndexMax]);
-
-/**
- *	@brief	Calculate output.
- *
- *	@param	arguments			: Pointer to command-line arguments struct.
- *	@param	numberOfYearsToRetirement	: Number of years to retirement.
- *	@param	inputVariables			: The input variables.
- *	@param	outputDistributions		: The output variables.
- */
-void	calculateOutput(
-		CommandLineArguments *	arguments,
-		size_t			numberOfYearsToRetirement,
-		double *		inputVariables[kInputDistributionIndexMax],
-		double *		outputDistributions);
+double
+calculateOutputMonteCarlo(
+	CommandLineArguments *  arguments,
+	double *                inputVariables[kInputDistributionIndexMax],
+	double *                outputVariables,
+	double *                monteCarloOutputSamples);

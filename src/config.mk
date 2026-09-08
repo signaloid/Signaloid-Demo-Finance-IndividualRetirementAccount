@@ -1,5 +1,7 @@
 SOURCES =\
 	main.c\
-	kernel.c\
+	utilities.c\
 	common.c\
-	utilities.c
+	kernel.c\
+	investment-retirement-account-uxhw.c\
+	investment-retirement-account-monte-carlo.c

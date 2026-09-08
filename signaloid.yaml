@@ -6,4 +6,17 @@ MinimumCore:
 TraceVariables:
     - File: "main.c"
       LineNumber: 42
-      Expression: "outputDistributions[0:1]"
+      Expression: "outputVariables[0:1]"
+
+BenchmarkingVariables:
+    - VariableName: outputVariables[0]
+      VariableDescription: Taxable payments
+      OutputObject: Distribution
+      CommandLineArguments: -S 0
+    - VariableName: outputVariables[1]
+      VariableDescription: Tax-free payments
+      OutputObject: Distribution
+      CommandLineArguments: -S 1
+
+BenchmarkingAllOutputs:
+    - CommandLineArguments: -S 2
