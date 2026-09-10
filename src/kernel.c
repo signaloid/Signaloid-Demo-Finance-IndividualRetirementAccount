@@ -1,5 +1,5 @@
 /*
- *	Copyright (c) 2024, Signaloid.
+ *	Copyright (c) 2025-2026, Signaloid.
  *
  *	Permission is hereby granted, free of charge, to any person obtaining a copy
  *	of this software and associated documentation files (the "Software"), to deal
@@ -20,80 +20,110 @@
  *	SOFTWARE.
  */
 
+#include <stddef.h>
+#include <stdbool.h>
 #include "kernel.h"
+#include "investment-retirement-account-uxhw.h"
+#include "investment-retirement-account-monte-carlo.h"
 #include "utilities.h"
 
-
 double
-calculateFutureValueTaxed(
-	int		numberOfYearsToRetirement,
-	double *	inputVariables[kInputDistributionIndexMax])
+calculateOutputUxHw(
+	CommandLineArguments *  arguments,
+	double *                inputVariables[kInputDistributionIndexMax],
+	double *                outputVariables)
 {
-	double *	totalAnnualContributionToAccount = inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount];
-	double *	compoundedAnnualInterestRate = inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate];
-	double *	assumedTaxRateOnInterest = inputVariables[kInputDistributionIndexAssumedTaxRateOnInterest];
-	double		futureValue = 0.0;
-	double		currentYearValueIncreaseRate;
+	double  result = 0.0;
+	size_t  numberOfYearsToRetirement   = (size_t) arguments->numberOfYearsToRetirement;
+	bool    calculateAllOutputs         = (arguments->common.outputSelect == kOutputDistributionIndexMax);
 
-	for (int i = 0; i < numberOfYearsToRetirement; i++)
+	/*
+	 *	Set the per-year input distributions via UxHw calls, unless they have
+	 *	already been read from a CSV file.
+	 */
+	if (!arguments->common.isInputFromFileEnabled)
 	{
-		currentYearValueIncreaseRate =
-			(compoundedAnnualInterestRate[i] / 100) *
-			(1.0 - (assumedTaxRateOnInterest[i] / 100));
-
-		futureValue =
-			(futureValue + totalAnnualContributionToAccount[i]) *
-			(1.0 + currentYearValueIncreaseRate);
+		setInputVariables(arguments, inputVariables);
 	}
-
-	return futureValue;
-}
-
-double
-calculateFutureValueTaxedWithdrawal(
-	int		numberOfYearsToRetirement,
-	double *	inputVariables[kInputDistributionIndexMax])
-{
-	double *	totalAnnualContributionToAccount = inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount];
-	double *	compoundedAnnualInterestRate = inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate];
-	double *	withdrawalRate = inputVariables[kInputDistributionIndexWithdrawalRate];
-	double		futureValue = 0.0;
-	double		currentYearValueIncreaseRate;
-
-	for (int i = 0; i < numberOfYearsToRetirement; i++)
-	{
-		currentYearValueIncreaseRate = (compoundedAnnualInterestRate[i] / 100);
-
-		futureValue =
-			(futureValue + totalAnnualContributionToAccount[i] * (1.0 - (withdrawalRate[i] / 100))) *
-			(1.0 + currentYearValueIncreaseRate);
-	}
-
-	return futureValue;
-}
-
-void
-calculateOutput(
-	CommandLineArguments *	arguments,
-	size_t			numberOfYearsToRetirement,
-	double *		inputVariables[kInputDistributionIndexMax],
-	double *		outputDistributions)
-{
-	bool	calculateAllOutputs = (arguments->common.outputSelect == kOutputDistributionIndexMax);
 
 	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexFutureValueTaxed))
 	{
-		outputDistributions[kOutputDistributionIndexFutureValueTaxed] = calculateFutureValueTaxed(
-											numberOfYearsToRetirement,
-											inputVariables);
+		result = outputVariables[kOutputDistributionIndexFutureValueTaxed] = futureValueTaxedUxHw(
+			numberOfYearsToRetirement,
+			inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount],
+			inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate],
+			inputVariables[kInputDistributionIndexAssumedTaxRateOnInterest]
+		);
 	}
 
 	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexFutureValueTaxedWithdrawal))
 	{
-		outputDistributions[kOutputDistributionIndexFutureValueTaxedWithdrawal] = calculateFutureValueTaxedWithdrawal(
-												numberOfYearsToRetirement,
-												inputVariables);
+		result = outputVariables[kOutputDistributionIndexFutureValueTaxedWithdrawal] = futureValueTaxFreeWithWithdrawalTaxUxHw(
+			numberOfYearsToRetirement,
+			inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount],
+			inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate],
+			inputVariables[kInputDistributionIndexWithdrawalRate]
+		);
 	}
 
-	return;
+	return result;
+}
+
+double
+calculateOutputMonteCarlo(
+	CommandLineArguments *  arguments,
+	double *                inputVariables[kInputDistributionIndexMax],
+	double *                outputVariables,
+	double *                monteCarloOutputSamples)
+{
+	double  result = 0.0;
+	size_t  numberOfYearsToRetirement = (size_t) arguments->numberOfYearsToRetirement;
+
+	/*
+	 *	`getCommandLineArguments()` rejects Monte Carlo mode unless a single
+	 *	output is selected, so `outputSelect` is always one of the two output
+	 *	indices here. Fall back to the first output rather than indexing
+	 *	`outputVariables` out of bounds should that ever stop holding.
+	 */
+	size_t outputSelect = (arguments->common.outputSelect < kOutputDistributionIndexMax)
+	                ? arguments->common.outputSelect
+	                : kOutputDistributionIndexFutureValueTaxed;
+
+	for (size_t ii = 0; ii < arguments->common.numberOfMonteCarloIterations; ii++)
+	{
+		/*
+		 *	Draw a fresh set of per-year input samples for this iteration,
+		 *	unless the inputs have already been read from a CSV file, in
+		 *	which case every iteration reuses the same inputs.
+		 */
+		if (!arguments->common.isInputFromFileEnabled)
+		{
+			setInputVariables(arguments, inputVariables);
+		}
+
+		if (outputSelect == kOutputDistributionIndexFutureValueTaxed)
+		{
+			result = futureValueTaxedMonteCarlo(
+				numberOfYearsToRetirement,
+				inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount],
+				inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate],
+				inputVariables[kInputDistributionIndexAssumedTaxRateOnInterest]
+			);
+		}
+		else
+		{
+			result = futureValueTaxFreeWithWithdrawalTaxMonteCarlo(
+				numberOfYearsToRetirement,
+				inputVariables[kInputDistributionIndexTotalAnnualContributionToAccount],
+				inputVariables[kInputDistributionIndexCompoundedAnnualInterestRate],
+				inputVariables[kInputDistributionIndexWithdrawalRate]
+			);
+		}
+
+		monteCarloOutputSamples[ii] = result;
+	}
+
+	outputVariables[outputSelect] = result;
+
+	return result;
 }

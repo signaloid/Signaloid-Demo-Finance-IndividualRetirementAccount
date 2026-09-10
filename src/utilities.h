@@ -1,5 +1,5 @@
 /*
- *	Copyright (c) 2024, Signaloid.
+ *	Copyright (c) 2025-2026, Signaloid.
  *
  *	Permission is hereby granted, free of charge, to any person obtaining a copy
  *	of this software and associated documentation files (the "Software"), to deal
@@ -28,63 +28,100 @@
 #include "common.h"
 
 
-#define kDefaultInputDistributionConstantAnnualInterestRateMin	(0.5)
-#define kDefaultInputDistributionConstantAnnualInterestRateMax	(1.0)
-#define kDefaultInputDistributionConstantAnnualContributionMin	(5000.0)
-#define kDefaultInputDistributionConstantAnnualContributionMax	(10000.0)
-#define kDefaultInputDistributionConstantTaxRateInterestMin	(20.0)
-#define kDefaultInputDistributionConstantTaxRateInterestMax	(40.0)
-#define kDefaultInputDistributionConstantWithdrawalRateMin	(20.0)
-#define kDefaultInputDistributionConstantWithdrawalRateMax	(40.0)
+#define kDefaultInputDistributionConstantAnnualInterestRateMin  (0.5)
+#define kDefaultInputDistributionConstantAnnualInterestRateMax  (1.0)
+#define kDefaultInputDistributionConstantAnnualContributionMin  (5000.0)
+#define kDefaultInputDistributionConstantAnnualContributionMax  (10000.0)
+#define kDefaultInputDistributionConstantTaxRateInterestMin     (20.0)
+#define kDefaultInputDistributionConstantTaxRateInterestMax     (40.0)
+#define kDefaultInputDistributionConstantWithdrawalRateMin      (20.0)
+#define kDefaultInputDistributionConstantWithdrawalRateMax      (40.0)
 
 typedef enum
 {
 	kDemoFinanceIraDefaultNumberOfYearsToRetirement = 20,
 } DemoFinanceIraDefault;
 
+#ifdef NO_OS_AVAILABLE
 typedef enum
 {
-	kInputDistributionIndexTotalAnnualContributionToAccount	= 0,
-	kInputDistributionIndexCompoundedAnnualInterestRate	= 1,
-	kInputDistributionIndexWithdrawalRate			= 2,
-	kInputDistributionIndexAssumedTaxRateOnInterest		= 3,
-	kInputDistributionIndexMax				= 4
+	kDemoFinanceIraNoOSNumberOfYearsToRetirement = 2,
+} DemoFinanceIraNoOS;
+#endif
+
+typedef enum
+{
+	kInputDistributionIndexTotalAnnualContributionToAccount = 0,
+	kInputDistributionIndexCompoundedAnnualInterestRate     = 1,
+	kInputDistributionIndexWithdrawalRate                   = 2,
+	kInputDistributionIndexAssumedTaxRateOnInterest         = 3,
+	kInputDistributionIndexMax                              = 4
 } InputDistributionIndex;
 
 typedef enum
 {
-	kOutputDistributionIndexFutureValueTaxed		= 0,
-	kOutputDistributionIndexFutureValueTaxedWithdrawal	= 1,
-	kOutputDistributionIndexMax				= 2
+	kOutputDistributionIndexFutureValueTaxed            = 0,
+	kOutputDistributionIndexFutureValueTaxedWithdrawal  = 1,
+	kOutputDistributionIndexMax                         = 2
 } OutputDistributionIndex;
 
 typedef struct
 {
-	CommonCommandLineArguments	common;
+	CommonCommandLineArguments  common;
 
-	int				numberOfYearsToRetirement;
-	char				inputVariablesUxStrings[kInputDistributionIndexMax][kCommonConstantMaxCharsPerLine];
-	bool				isInputVariableSet[kInputDistributionIndexMax];
-
+	int                         numberOfYearsToRetirement;
+	char                        inputVariablesUxStrings[kInputDistributionIndexMax][kCommonConstantMaxCharsPerLine];
+	bool                        isInputVariableSet[kInputDistributionIndexMax];
 } CommandLineArguments;
 
 /**
  *	@brief	Print out command-line usage.
  */
-void	printUsage(void);
+void
+printUsage(void);
 
 /**
  *	@brief	Get command-line arguments.
+ *
+ *		In the no-OS build there is no command line: `argc` and `argv` are
+ *		ignored and the hard-coded configuration set by
+ *		`setNoOSCommandLineArguments()` is used instead.
  *
  *	@param	argc		: Argument count from `main()`.
  *	@param	argv		: Argument vector from `main()`.
  *	@param	arguments	: Pointer to struct to store arguments.
  *	@return			: `kCommonConstantReturnTypeSuccess` if successful, else `kCommonConstantReturnTypeError`.
  */
-CommonConstantReturnType	getCommandLineArguments(
-					int			argc,
-					char *			argv[],
-					CommandLineArguments *	arguments);
+CommonConstantReturnType
+getCommandLineArguments(
+	int                     argc,
+	char *                  argv[],
+	CommandLineArguments *  arguments);
+
+/**
+ *	@brief	Set the default values for the command-line arguments.
+ *
+ *	@param	arguments	: Command-line arguments pointer.
+ *	@return			: `kCommonConstantReturnTypeSuccess` if successful, else `kCommonConstantReturnTypeError`.
+ */
+CommonConstantReturnType
+setDefaultCommandLineArguments(CommandLineArguments * arguments);
+
+#ifdef NO_OS_AVAILABLE
+
+/**
+ *	@brief	Set the hard-coded command-line arguments used by the no-OS build.
+ *
+ *		This is the single place to change the configuration that no-OS runs
+ *		use, since those runs cannot be given command-line arguments. Fields
+ *		not set here keep the values from `setDefaultCommandLineArguments()`.
+ *
+ *	@param	arguments	: Command-line arguments pointer.
+ *	@return			: `kCommonConstantReturnTypeSuccess` if successful, else `kCommonConstantReturnTypeError`.
+ */
+CommonConstantReturnType
+setNoOSCommandLineArguments(CommandLineArguments * arguments);
+#endif
 
 /**
  *	@brief	Set distributions for input variables via UxHw calls.
@@ -92,55 +129,10 @@ CommonConstantReturnType	getCommandLineArguments(
  *	@param	arguments			: Pointer to command-line arguments struct.
  *	@param	inputVariables			: The input variables to be set.
  */
-void	setInputVariables(
-		CommandLineArguments *	arguments,
-		double *		inputVariables[kInputDistributionIndexMax]);
-
-
-/**
- *	@brief	Determine the index range of selected outputs.
- *
- *	@param	arguments			: Pointer to command-line arguments struct.
- *	@param	pointerToOutputSelectLowerBound	: Pointer to lower bound index.
- *	@param	pointerToOutputSelectUpperBound	: Pointer to upper bound index.
- */
-void	determineIndexRangeOfSelectedOutputs(
-		CommandLineArguments *		arguments,
-		OutputDistributionIndex *	pointerToOutputSelectLowerBound,
-		OutputDistributionIndex *	pointerToOutputSelectUpperBound);
-
-/**
- *	@brief	Print human-consumable output.
- *
- *	@param	arguments			: Pointer to command-line arguments struct.
- *	@param	outputDistributions		: The output variables.
- *	@param	outputNames			: Names of the output variables to print.
- *	@param	outputVariableDescriptions	: Descriptions of output variables to print.
- *	@param	monteCarloOutputSamples		: Monte Carlo output samples that will populate JSON struct values if in Monte Carlo mode.
- */
-void	printHumanConsumableOutput(
-		CommandLineArguments *	arguments,
-		double *		outputDistributions,
-		const char *		outputVariableNames[kOutputDistributionIndexMax],
-		const char *		outputVariableDescriptions[kOutputDistributionIndexMax],
-		double *		monteCarloOutputSamples);
-
-/**
- *	@brief	Populate and print JSON variables.
- *
- *	@param	jsonVariables			: Array of `JSONVariable` structs to populate and print.
- *	@param	arguments			: Pointer to command-line arguments struct.
- *	@param	outputDistributions		: The output variables.
- *	@param	outputVariableDescriptions	: Descriptions of output variables from which the array of `JSONVariable` structs will take their descriptions.
- *	@param	monteCarloOutputSamples		: Monte Carlo output samples that will populate `JSONVariable` struct values if in Monte Carlo mode.
- */
-void	populateAndPrintJSONVariables(
-		CommandLineArguments *	arguments,
-		double *		inputVariables[kInputDistributionIndexMax],
-		const char *		inputVariableDescriptions[kOutputDistributionIndexMax],
-		double *		outputDistributions,
-		const char *		outputVariableDescriptions[kOutputDistributionIndexMax],
-		double *		monteCarloOutputSamples);
+void
+setInputVariables(
+	CommandLineArguments *  arguments,
+	double *                inputVariables[kInputDistributionIndexMax]);
 
 /**
  *	@brief	Read the input variables from a CSV file.
@@ -149,6 +141,7 @@ void	populateAndPrintJSONVariables(
  *	@param	CSVInputVariables	: The input variables to be set.
  *	@return				: `kCommonConstantReturnTypeSuccess` if successful, else `kCommonConstantReturnTypeError`.
  */
-CommonConstantReturnType	prepareCSVInputVariables(
-					CommandLineArguments *	arguments,
-					double *		CSVInputVariables[kInputDistributionIndexMax]);
+CommonConstantReturnType
+prepareCSVInputVariables(
+	CommandLineArguments *  arguments,
+	double *                CSVInputVariables[kInputDistributionIndexMax]);
